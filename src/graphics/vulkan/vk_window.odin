@@ -8,8 +8,9 @@ import dev "../device"
 
 import vk "vendor:vulkan"
 
+MAX_FRAMES_IN_FLIGHT :: 4
 
-Window_Canvas :: struct {
+Swapchain :: struct {
     window: host.Window,
     surface: vk.SurfaceKHR,
 
@@ -22,7 +23,7 @@ Window_Canvas :: struct {
     swapchainImageColorSpace: vk.ColorSpaceKHR,
 
     // Currently rendering Index
-    swapchainImageIndex: u32, 
+    // swapchainImageIndex: u32, 
 
     surfaceCapabilities: vk.SurfaceCapabilitiesKHR,
     presentMode: vk.PresentModeKHR,
@@ -30,13 +31,24 @@ Window_Canvas :: struct {
 
     imageExtents: vk.Extent2D,
 
-    // True when the window is minimized
     outOfDate: bool,
+
+    // Frame Structures
+    frames: [MAX_FRAMES_IN_FLIGHT]Swapchain_Frame,
+    currentFrame: u32,
 }
 
-MAX_FRAMES_IN_FLIGHT :: 4
+Swapchain_Frame :: struct {
+    commandPool: vk.CommandPool,
+    mainCommandBuffer: vk.CommandBuffer,
 
-window_canvas :: proc(window: host.Window) -> ^Window_Canvas {
+    swapSema, presentSema: vk.Semaphore,
+    renderFinished: vk.Fence,
+
+    deletionQueue: Action_Queue,
+}
+
+get_swapchain :: proc(window: host.Window) -> ^Swapchain {
     using global
     
     if window not_in windows {
@@ -44,7 +56,7 @@ window_canvas :: proc(window: host.Window) -> ^Window_Canvas {
     
         log.assertf(res == .SUCCESS, "Could not create surface for Window: {}", res)
     
-        windows[window] = Window_Canvas {
+        windows[window] = Swapchain {
             window = window,
             surface = surface,
         }
@@ -56,54 +68,55 @@ window_canvas :: proc(window: host.Window) -> ^Window_Canvas {
 /* Initializes the target window's Swapchain for Vulkan Rendering
 */
 window_register :: proc(window: host.Window) {
-    canv := window_canvas(window)
+    swap := get_swapchain(window)
 
     // Swapchain Initialization
     pd := global.physicalDevice
 
-    sup := query_swapchain_support(pd, canv.surface, context.temp_allocator)
+    sup := query_swapchain_support(pd, swap.surface, context.temp_allocator)
 
     format := swapchain_choose_format(sup.formats)
     presentMode := swapchain_choose_presentmode(sup.presentModes)
-    canv.imageExtents = swapchain_choose_extents(canv, sup.capabilities)
+    swap.imageExtents = swapchain_choose_extents(swap, sup.capabilities)
 
-    canv.swapchainImageFormat = format.format
-    canv.swapchainImageColorSpace = format.colorSpace
-    canv.surfaceCapabilities = sup.capabilities
-    canv.presentMode = presentMode
-    canv.preTransform = sup.capabilities.currentTransform
+    swap.swapchainImageFormat = format.format
+    swap.swapchainImageColorSpace = format.colorSpace
+    swap.surfaceCapabilities = sup.capabilities
+    swap.presentMode = presentMode
+    swap.preTransform = sup.capabilities.currentTransform
 
     {
-        imageCount := canv.surfaceCapabilities.minImageCount + 1
+        imageCount := swap.surfaceCapabilities.minImageCount + 1
         maxImageCount := sup.capabilities.maxImageCount
         if maxImageCount > 0 && imageCount > maxImageCount {
             imageCount = min(maxImageCount, MAX_FRAMES_IN_FLIGHT)
         }
-        canv.swapchainImageCount = imageCount
+        swap.swapchainImageCount = imageCount
     }
 
-    swapchain_create(canv)
+    swapchain_create(swap)
+    swapchain_frames_init(swap)
 }
 
-swapchain_create :: proc(canv: ^Window_Canvas) {
+swapchain_create :: proc(swap: ^Swapchain) {
     pd := global.physicalDevice
 
     createInfo := vk.SwapchainCreateInfoKHR {
         sType = .SWAPCHAIN_CREATE_INFO_KHR,
-        surface = canv.surface,
-        minImageCount = canv.swapchainImageCount,
-        imageFormat = canv.swapchainImageFormat,
-        imageColorSpace = canv.swapchainImageColorSpace,
-        imageExtent = canv.imageExtents,
+        surface = swap.surface,
+        minImageCount = swap.swapchainImageCount,
+        imageFormat = swap.swapchainImageFormat,
+        imageColorSpace = swap.swapchainImageColorSpace,
+        imageExtent = swap.imageExtents,
         imageArrayLayers = 1,
         imageUsage = { .COLOR_ATTACHMENT, .TRANSFER_DST },
-        preTransform = canv.preTransform,
+        preTransform = swap.preTransform,
         compositeAlpha = { .OPAQUE },
-        presentMode = canv.presentMode,
+        presentMode = swap.presentMode,
         clipped = true,
     }
 
-    set := findFamilies(pd, canv.surface)
+    set := findFamilies(pd, swap.surface)
     indices: [Queue_Family]u32
     indices[.Graphics] = set[.Graphics].(u32)
     indices[.Present] = set[.Graphics].(u32)
@@ -120,21 +133,21 @@ swapchain_create :: proc(canv: ^Window_Canvas) {
     alck := global.allocationCallbacks
     res: vk.Result
 
-    res = vk.CreateSwapchainKHR(ld, &createInfo, alck, &canv.swapchain)
+    res = vk.CreateSwapchainKHR(ld, &createInfo, alck, &swap.swapchain)
     log.assertf(res == .SUCCESS, "Vulkan: Failed to CreateSwapchain {}", res)
 
     vk.GetSwapchainImagesKHR(
-        ld, canv.swapchain,
-        &canv.swapchainImageCount,
-        &canv.swapchainImages[0],
+        ld, swap.swapchain,
+        &swap.swapchainImageCount,
+        &swap.swapchainImages[0],
     )
 
-    for i in 0..<canv.swapchainImageCount {
+    for i in 0..<swap.swapchainImageCount {
         info := vk.ImageViewCreateInfo {
             sType = .IMAGE_VIEW_CREATE_INFO,
-            image = canv.swapchainImages[i],
+            image = swap.swapchainImages[i],
             viewType = .D2,
-            format = canv.swapchainImageFormat,
+            format = swap.swapchainImageFormat,
             components = {
                 r = .IDENTITY,
                 g = .IDENTITY,
@@ -148,7 +161,7 @@ swapchain_create :: proc(canv: ^Window_Canvas) {
             }
         }
 
-        res = vk.CreateImageView(ld, &info, alck, &canv.swapchainImageViews[i])
+        res = vk.CreateImageView(ld, &info, alck, &swap.swapchainImageViews[i])
         log.assertf(res == .SUCCESS,
             "Vulkan: Failed to create Image-View [{}]: {}",
             i, res,
@@ -156,34 +169,90 @@ swapchain_create :: proc(canv: ^Window_Canvas) {
     }
 }
 
-swapchain_dispose :: proc(canv: ^Window_Canvas) {
+swapchain_dispose :: proc(swap: ^Swapchain) {
     using global
-    for view in canv.swapchainImageViews {
+    for view in swap.swapchainImageViews {
         vk.DestroyImageView(device, view, allocationCallbacks)
     }
-    vk.DestroySwapchainKHR(device, canv.swapchain, allocationCallbacks)
+    vk.DestroySwapchainKHR(device, swap.swapchain, allocationCallbacks)
 }
 
-swapchain_recreate :: proc(canv: ^Window_Canvas) {
+swapchain_recreate :: proc(swap: ^Swapchain) {
     gd := global.device
     pd := global.physicalDevice
     alck := global.allocationCallbacks
 
-    surf := canv.surface
+    surf := swap.surface
 
-    defer canv.outOfDate = false
+    defer swap.outOfDate = false
 
     // TODO
 
     vkcheck(vk.DeviceWaitIdle(gd))
 
-    swapchain_dispose(canv)
+    swapchain_dispose(swap)
     sup := query_swapchain_support(pd, surf, context.temp_allocator)
-    next_extents := swapchain_choose_extents(canv, sup.capabilities)
+    next_extents := swapchain_choose_extents(swap, sup.capabilities)
 
     // log.info("NEXT SIZE:", next_extents)
-    canv.imageExtents = next_extents
-    swapchain_create(canv)
+    swap.imageExtents = next_extents
+    swapchain_create(swap)
+}
+
+swapchain_frames_init :: proc(swap: ^Swapchain) {
+
+    poolInfo := vk.CommandPoolCreateInfo {
+        sType = .COMMAND_POOL_CREATE_INFO,
+        flags = { .RESET_COMMAND_BUFFER },
+        queueFamilyIndex = global.graphicsQueueFamily,
+    }
+
+    fenceInfo := fence_create_info({ .SIGNALED })
+    semaInfo := semaphore_create_info({})
+
+    ld := global.device
+    alck := global.allocationCallbacks
+
+    res: vk.Result
+    for i in 0..<swap.swapchainImageCount {
+        frame := &swap.frames[i]
+        
+        res = vk.CreateCommandPool(ld, &poolInfo, alck, &frame.commandPool)
+        vkcheck(res)
+
+        cmdAllocInfo := vk.CommandBufferAllocateInfo {
+            sType = .COMMAND_BUFFER_ALLOCATE_INFO,
+            commandPool = frame.commandPool,
+            commandBufferCount = 1,
+            level = .PRIMARY,
+        }
+
+        res = vk.AllocateCommandBuffers(ld, &cmdAllocInfo, &frame.mainCommandBuffer)
+        vkcheck(res)
+
+        res = vk.CreateFence(ld, &fenceInfo, alck, &frame.renderFinished)
+        vkcheck(res)
+
+        res = vk.CreateSemaphore(ld, &semaInfo, alck, &frame.swapSema)
+        vkcheck(res)
+
+        res = vk.CreateSemaphore(ld, &semaInfo, alck, &frame.presentSema)
+        vkcheck(res)
+    }
+}
+
+swapchain_frames_deinit :: proc(swap: ^Swapchain) {
+    ld := global.device
+    alck := global.allocationCallbacks
+    for &frame in swap.frames {
+        vk.DestroyCommandPool(ld, frame.commandPool, alck)
+        vk.DestroyFence(ld, frame.renderFinished, alck)
+        vk.DestroySemaphore(ld, frame.swapSema, alck)
+        vk.DestroySemaphore(ld, frame.presentSema, alck)
+
+        exec_queue(&frame.deletionQueue)
+        destroy_queue(&frame.deletionQueue)
+    }
 }
 
 Swapchain_Support :: struct {
@@ -241,7 +310,7 @@ swapchain_choose_presentmode :: proc(presentModes: []vk.PresentModeKHR) -> vk.Pr
 }
 
 swapchain_choose_extents :: proc(
-    win: ^Window_Canvas,
+    win: ^Swapchain,
     cap: vk.SurfaceCapabilitiesKHR,
 ) -> vk.Extent2D {
     // if cap.currentExtent.width != max(u32) {

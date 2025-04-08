@@ -19,7 +19,7 @@ main :: proc() {
     defer host.shutdown()
 
     win := host.create_window({
-        title = "Hello Glint",
+        title = "Formula",
         width = 1080,
         height = 720,
     })
@@ -27,6 +27,12 @@ main :: proc() {
 
     gfx.initialize(win, {})
     defer gfx.shutdown()
+
+    canvas := gfx.create_canvas(gfx.Canvas_Desc {
+        width = 1080,
+        height = 720,
+    })
+    defer gfx.destroy_canvas(canvas)
 
     quit: bool
     for !quit {
@@ -41,9 +47,10 @@ main :: proc() {
             }
         }
 
-        gfx.begin_frame()
+        gfx.present(canvas, win)
+        // gfx.begin_frame()
 
         
-        gfx.end_frame()
+        // gfx.end_frame()
     }
 }

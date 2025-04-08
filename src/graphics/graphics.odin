@@ -11,6 +11,9 @@ API :: dev.API
 
 Opt :: dev.Opt
 
+Canvas :: dev.Canvas
+Canvas_Desc :: dev.Canvas_Desc
+
 
 @private
 global: struct {
@@ -33,12 +36,26 @@ shutdown :: proc() {
     api.shutdown()
 }
 
-begin_frame :: proc() {
-    using global
-    api.begin_frame()
+present :: proc(canvas: ^Canvas, window: host.Window) {
+    global.api.present(canvas, window)
 }
 
-end_frame :: proc() {
-    using global
-    api.end_frame()
+create_canvas :: proc(desc: Canvas_Desc) -> ^Canvas {
+    // TODO: Validate desc (eg width/height > 0)
+    return global.api.canvas.create(desc)
 }
+
+destroy_canvas :: proc(canvas: ^Canvas) {
+    global.api.canvas.dispose(canvas)
+    free(canvas)
+}
+
+// begin_frame :: proc() {
+//     using global
+//     api.begin_frame()
+// }
+
+// end_frame :: proc() {
+//     using global
+//     api.end_frame()
+// }

@@ -9,6 +9,14 @@ API :: struct {
     shutdown: proc(),
 
     begin_frame, end_frame: proc(),
+
+    present: proc(^Canvas, host.Window),
+
+    canvas: struct {
+        create: proc(desc: Canvas_Desc) -> ^Canvas,
+        dispose: proc(rawptr),
+        // present: proc(rawptr, host.Window),
+    },
 }
 
 Opt :: struct {
@@ -21,4 +29,12 @@ Device_Preference :: enum {
     Integrated,
     Software,
     Virtual,
+}
+
+Canvas :: struct {
+    
+}
+
+Canvas_Desc :: struct {
+    width, height: u32,
 }

@@ -30,10 +30,10 @@ initialize :: proc(opt: dev.Opt, mainWindow: host.Window) {
     vk.load_proc_addresses_instance(instance)
 
     // Register the main window's Surface, but not create the Swapchain yet
-    canvas := window_canvas(mainWindow)
+    swap := get_swapchain(mainWindow)
 
-    pick_physical_device(opt, canvas.surface)
-    create_logical_device(canvas.surface)
+    pick_physical_device(opt, swap.surface)
+    create_logical_device(swap.surface)
 
     // Initialize Memory Allocator
     {
@@ -56,7 +56,7 @@ initialize :: proc(opt: dev.Opt, mainWindow: host.Window) {
 
     // Create structures for as many frames as there are in the Swapchain
     // TODO: Multi-Swapchain for Windows
-    create_frame_structures(canvas.swapchainImageCount)
+    // create_frame_structures(swapchainImageCount)
 }
 
 shutdown :: proc() {
@@ -64,20 +64,23 @@ shutdown :: proc() {
 
     vk.DeviceWaitIdle(device)
 
-    for &frame in frames {
-        vk.DestroyCommandPool(device, frame.commandPool, allocationCallbacks)
-        vk.DestroyFence(device, frame.renderFinished, allocationCallbacks)
-        vk.DestroySemaphore(device, frame.swapSema, allocationCallbacks)
-        vk.DestroySemaphore(device, frame.presentSema, allocationCallbacks)
+    // for &frame in frames {
+    //     vk.DestroyCommandPool(device, frame.commandPool, allocationCallbacks)
+    //     vk.DestroyFence(device, frame.renderFinished, allocationCallbacks)
+    //     vk.DestroySemaphore(device, frame.swapSema, allocationCallbacks)
+    //     vk.DestroySemaphore(device, frame.presentSema, allocationCallbacks)
 
-        // TODO: Frame queues
-        // exec_queue(&frame.deletionQueue)
-        // deq.destroy(&frame.deletionQueue)
-    }
+    //     exec_queue(&frame.deletionQueue)
+    //     destroy_queue(&frame.deletionQueue)
+    // }
 
-    for win, &canv in windows {
-        swapchain_dispose(&canv)
-        vk.DestroySurfaceKHR(instance, canv.surface, allocationCallbacks)
+    exec_queue(&globalDeletionQueue)
+    destroy_queue(&globalDeletionQueue)
+
+    for win, &swap in windows {
+        swapchain_dispose(&swap)
+        swapchain_frames_deinit(&swap)
+        vk.DestroySurfaceKHR(instance, swap.surface, allocationCallbacks)
     }
 
     vma.DestroyAllocator(allocator)
@@ -277,7 +280,35 @@ pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
             "could not find Device of type {}",
             pref,
         )
+
     }
+
+    props: vk.PhysicalDeviceProperties
+    vk.GetPhysicalDeviceProperties(physicalDevice, &props)
+    log.infof("Chose device: {}", cstring(&props.deviceName[0]))
+
+    // Image Properties Check
+    {
+        imginfo := vk.PhysicalDeviceImageFormatInfo2 {
+            sType = .PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
+            format = .R16G16B16A16_SFLOAT,
+            type = .D2,
+            tiling = .OPTIMAL,
+            usage = { .TRANSFER_DST, .TRANSFER_SRC, },
+        }
+        imgprops := vk.ImageFormatProperties2 {
+            sType = .IMAGE_FORMAT_PROPERTIES_2,
+            imageFormatProperties = {
+
+            }
+        }
+        res := vk.GetPhysicalDeviceImageFormatProperties2(
+            physicalDevice, &imginfo, &imgprops,
+        )
+        log.assertf(res == .SUCCESS, "IMAGE FORMAT: {}", res)
+    }
+    // log.infof("Device Image Properties", imginfo.)
+
 
     // ----------------- \\
 
@@ -363,49 +394,6 @@ create_logical_device :: proc(surface: vk.SurfaceKHR) {
 
     vk.GetDeviceQueue(device, indices[.Graphics].(u32), 0, &graphicsQueue)
     vk.GetDeviceQueue(device, indices[.Present].(u32), 0, &presentQueue)
-}
-
-@(private="file")
-create_frame_structures :: proc(framesInFlight: u32) {
-
-    poolInfo := vk.CommandPoolCreateInfo {
-        sType = .COMMAND_POOL_CREATE_INFO,
-        flags = { .RESET_COMMAND_BUFFER },
-        queueFamilyIndex = global.graphicsQueueFamily,
-    }
-
-    fenceInfo := fence_create_info({ .SIGNALED })
-    semaInfo := semaphore_create_info({})
-
-    ld := global.device
-    alck := global.allocationCallbacks
-
-    res: vk.Result
-    for i in 0..<framesInFlight {
-        frame := &global.frames[i]
-        
-        res = vk.CreateCommandPool(ld, &poolInfo, alck, &frame.commandPool)
-        vkcheck(res)
-
-        cmdAllocInfo := vk.CommandBufferAllocateInfo {
-            sType = .COMMAND_BUFFER_ALLOCATE_INFO,
-            commandPool = frame.commandPool,
-            commandBufferCount = 1,
-            level = .PRIMARY,
-        }
-
-        res = vk.AllocateCommandBuffers(ld, &cmdAllocInfo, &frame.mainCommandBuffer)
-        vkcheck(res)
-
-        res = vk.CreateFence(ld, &fenceInfo, alck, &frame.renderFinished)
-        vkcheck(res)
-
-        res = vk.CreateSemaphore(ld, &semaInfo, alck, &frame.swapSema)
-        vkcheck(res)
-
-        res = vk.CreateSemaphore(ld, &semaInfo, alck, &frame.presentSema)
-        vkcheck(res)
-    }
 }
 
 checkValidationLayers :: proc(requiredLayers: []cstring) -> bool {
