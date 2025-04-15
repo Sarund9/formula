@@ -47,6 +47,10 @@ main :: proc() {
             }
         }
 
+        gfx.begin_pass(canvas, {})
+
+        gfx.end_pass(canvas, {}) // Is this nessesary ?
+
         gfx.present(canvas, win)
         // gfx.begin_frame()
 

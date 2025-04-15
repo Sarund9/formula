@@ -69,13 +69,34 @@ submit_info :: proc(
         commandBufferInfoCount = 1,
         pCommandBufferInfos = cmdSubmitInfo,
 
-        waitSemaphoreInfoCount = count(waitSemaphoreInfo),
-        pWaitSemaphoreInfos = waitSemaphoreInfo,
-
         signalSemaphoreInfoCount = count(signalSemaphoreInfo),
         pSignalSemaphoreInfos = signalSemaphoreInfo,
+
+        waitSemaphoreInfoCount = count(waitSemaphoreInfo),
+        pWaitSemaphoreInfos = waitSemaphoreInfo,
     }
 }
+
+submit_info_2 :: proc(
+    submits: []vk.CommandBufferSubmitInfo,
+    signals: []vk.SemaphoreSubmitInfo,
+    awaits: []vk.SemaphoreSubmitInfo,
+) -> vk.SubmitInfo2 {
+
+    return {
+        sType = .SUBMIT_INFO_2,
+
+        commandBufferInfoCount = u32(len(submits)),
+        pCommandBufferInfos = &submits[0],
+        
+        signalSemaphoreInfoCount = u32(len(signals)),
+        pSignalSemaphoreInfos = &signals[0],
+
+        waitSemaphoreInfoCount = u32(len(awaits)),
+        pWaitSemaphoreInfos = &awaits[0],
+    }
+}
+
 
 image_create_info :: proc(
     format: vk.Format, usageFlags: vk.ImageUsageFlags,

@@ -8,7 +8,7 @@ API :: struct {
     inititialize: proc(opt: Opt, mainWindow: host.Window),
     shutdown: proc(),
 
-    begin_frame, end_frame: proc(),
+    begin_pass, end_pass: proc(canvas: ^Canvas, pass: Pass),
 
     present: proc(^Canvas, host.Window),
 
@@ -37,4 +37,8 @@ Canvas :: struct {
 
 Canvas_Desc :: struct {
     width, height: u32,
+}
+
+Pass :: struct {
+
 }

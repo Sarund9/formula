@@ -13,6 +13,7 @@ Opt :: dev.Opt
 
 Canvas :: dev.Canvas
 Canvas_Desc :: dev.Canvas_Desc
+Pass :: dev.Pass
 
 
 @private
@@ -50,12 +51,10 @@ destroy_canvas :: proc(canvas: ^Canvas) {
     free(canvas)
 }
 
-// begin_frame :: proc() {
-//     using global
-//     api.begin_frame()
-// }
+begin_pass :: proc(canvas: ^Canvas, pass: Pass) {
+    global.api.begin_pass(canvas, pass)
+}
 
-// end_frame :: proc() {
-//     using global
-//     api.end_frame()
-// }
+end_pass :: proc(canvas: ^Canvas, pass: Pass) {
+    global.api.end_pass(canvas, pass)
+}

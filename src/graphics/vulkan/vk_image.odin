@@ -12,6 +12,7 @@ Allocated_Image :: struct {
     allocation: vma.Allocation,
     imageExtent: vk.Extent3D,
     imageFormat: vk.Format,
+    currentLayout: vk.ImageLayout,
 }
 
 transition_image :: proc(
@@ -43,6 +44,15 @@ transition_image :: proc(
     }
 
     vk.CmdPipelineBarrier2(cmd, &depInfo)
+}
+
+transition_image_2 :: proc(
+    cmd: vk.CommandBuffer,
+    image: ^Allocated_Image,
+    newLayout: vk.ImageLayout,
+) {
+    transition_image(cmd, image.image, image.currentLayout, newLayout)
+    image.currentLayout = newLayout
 }
 
 image_subresource_range :: proc(
