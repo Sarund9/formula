@@ -10,10 +10,19 @@ import "vulkan"
 API :: dev.API
 
 Opt :: dev.Opt
+Device_Preference :: dev.Device_Preference
 
-Canvas :: dev.Canvas
+Canvas      :: dev.Canvas
 Canvas_Desc :: dev.Canvas_Desc
-Pass :: dev.Pass
+Pass        :: dev.Pass
+
+Shader_Module :: dev.Shader_Module
+Shader_Stage  :: dev.Shader_Stage
+Program       :: dev.Program
+Program_Desc  :: dev.Program_Desc
+Shader_Desc   :: dev.Shader_Desc
+Binding_Desc  :: dev.Binding_Desc
+Binding_Type  :: dev.Binding_Type
 
 
 @private
@@ -37,10 +46,6 @@ shutdown :: proc() {
     api.shutdown()
 }
 
-present :: proc(canvas: ^Canvas, window: host.Window) {
-    global.api.present(canvas, window)
-}
-
 create_canvas :: proc(desc: Canvas_Desc) -> ^Canvas {
     // TODO: Validate desc (eg width/height > 0)
     return global.api.canvas.create(desc)
@@ -58,3 +63,20 @@ begin_pass :: proc(canvas: ^Canvas, pass: Pass) {
 end_pass :: proc(canvas: ^Canvas, pass: Pass) {
     global.api.end_pass(canvas, pass)
 }
+
+present :: proc(canvas: ^Canvas, window: host.Window) {
+    global.api.present(canvas, window)
+}
+
+load_shader :: proc(code: []byte) -> (Shader_Module, bool) {
+    return global.api.shader.load(code)
+}
+
+destroy_shader :: proc(mod: Shader_Module) {
+    global.api.shader.unload(mod)
+}
+
+create_program :: proc(desc: Program_Desc) -> ^Program {
+    return global.api.program.create(desc)
+}
+

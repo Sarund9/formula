@@ -2,6 +2,7 @@ package main
 
 
 import "core:log"
+import "core:os"
 
 import "host"
 import gfx "graphics"
@@ -14,6 +15,10 @@ main :: proc() {
     context.logger = log.create_console_logger(
         opt = { .Terminal_Color, .Level }
     )
+
+    gradientCS, ok := os.read_entire_file("shaders/gradient.spv")
+    assert(ok, "Shader Not Found!")
+    defer delete(gradientCS)
 
     host.initialize()
     defer host.shutdown()
@@ -49,7 +54,7 @@ main :: proc() {
 
         gfx.begin_pass(canvas, {})
 
-        gfx.end_pass(canvas, {}) // Is this nessesary ?
+        gfx.end_pass(canvas, {})
 
         gfx.present(canvas, win)
         // gfx.begin_frame()

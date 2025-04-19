@@ -14,9 +14,25 @@ API :: struct {
 
     canvas: struct {
         create: proc(desc: Canvas_Desc) -> ^Canvas,
-        dispose: proc(rawptr),
+        dispose: proc(^Canvas),
         // present: proc(rawptr, host.Window),
     },
+
+    // Shaders
+    shader: struct {
+        load: proc(code: []u8) -> (Shader_Module, bool),
+        unload: proc(mod: Shader_Module),
+
+        // create: proc(desc: Shader_Desc) -> (^Shader, bool),
+        // dispose: proc(^Shader),
+    },
+
+    // Compute Shader Pipeline
+    program: struct {
+        create: proc(desc: Program_Desc) -> ^Program,
+        dispose: proc(^Program),
+    },
+
 }
 
 Opt :: struct {
@@ -41,4 +57,36 @@ Canvas_Desc :: struct {
 
 Pass :: struct {
 
+}
+
+Shader_Module :: distinct rawptr
+
+Shader_Stage :: enum {
+    Compute,
+    Vertex,
+    Fragment,
+}
+
+Program :: struct {
+    
+}
+
+Program_Desc :: struct {
+    shader: Shader_Desc,
+    bindings: [4][]Binding_Desc,
+}
+
+Shader_Desc :: struct {
+    module: Shader_Module,
+    stage: Shader_Stage,
+    entrypoint: cstring,
+}
+
+Binding_Desc :: struct {
+    binding: u32,
+    type: Binding_Type,
+}
+
+Binding_Type :: enum {
+    
 }

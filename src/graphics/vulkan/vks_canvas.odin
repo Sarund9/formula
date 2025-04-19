@@ -20,7 +20,7 @@ Canvas_Vulkan :: struct {
     
     // Fences of swapchain frames we are presenting to.
     // Awaiting is only required when drawing (Write) to the Canvas, not presenting (Read) it.
-    presenting: [dynamic]vk.Fence,
+    lock: [dynamic]vk.Fence,
 
     commandPool: vk.CommandPool,
     cmd: vk.CommandBuffer,
@@ -29,7 +29,9 @@ Canvas_Vulkan :: struct {
     // Signaled by Submit
     renderFence: vk.Fence, // Signaled when drawing to this Finishes.
     renderSema: vk.Semaphore,
-    rendering: bool, // True if ops where submited to renderSema
+    // 1: True if ops where submited to renderSema
+    // 2: True if canvas has NOT been presented to a Swapchain
+    rendering, rendered: bool,
 }
 
 Canvas_Frame :: struct {
@@ -46,7 +48,7 @@ _canvas_api :: proc(api: ^dev.API) {
 canvas_create :: proc(desc: dev.Canvas_Desc) -> ^dev.Canvas {
     using this := new(Canvas_Vulkan)
     
-    presenting = make([dynamic]vk.Fence)
+    lock = make([dynamic]vk.Fence)
 
     drawImageExent := vk.Extent3D {
         width = desc.width,
@@ -129,11 +131,11 @@ canvas_create :: proc(desc: dev.Canvas_Desc) -> ^dev.Canvas {
     return this
 }
 
-canvas_dispose :: proc(ptr: rawptr) {
+canvas_dispose :: proc(ptr: ^dev.Canvas) {
     using this := transmute(^Canvas_Vulkan) ptr
     using global
     canvas_await(this) // Wait
-    delete(presenting)
+    delete(lock)
     vk.DestroyCommandPool(device, commandPool, allocationCallbacks)
     vk.DestroyFence(device, renderFence, allocationCallbacks)
     vk.DestroySemaphore(device, renderSema, allocationCallbacks)
@@ -143,21 +145,30 @@ canvas_dispose :: proc(ptr: rawptr) {
 
 @(private="file")
 canvas_await :: proc(using this: ^Canvas_Vulkan) {
-    if len(presenting) == 0 do return
+    if len(lock) == 0 do return
     
     device := global.device
 
     vkcheck(vk.WaitForFences(
-        device, u32(len(presenting)), &presenting[0],
+        device, u32(len(lock)), &lock[0],
         true, ONE_SECOND,
     ))
-    clear(&presenting)
+    clear(&lock)
 
     // If we were drawing to this, we must Reset the fence.
     if rendering {
         vkcheck(vk.ResetFences(
             device, 1, &renderFence,
         ))
+
+        // If we have not presented this Frame to some Swapchain.
+        // We must reset the Semaphore.
+        // if !this.presenting {
+            
+            
+
+        //     this.presenting = false
+        // }
 
         rendering = false // 
     }
@@ -210,22 +221,39 @@ canvas_end :: proc(ptr: ^dev.Canvas, pass: dev.Pass) {
     signalInfo := semaphore_submit_info(renderSema, {
         .ALL_GRAPHICS,
     })
+
+    waitInfo: vk.SemaphoreSubmitInfo
+    // If this frame has not been presented to a Swapchain
+    //  we must await the Semaphore
+    if this.rendered {
+        waitInfo = semaphore_submit_info(renderSema, {
+            .COLOR_ATTACHMENT_OUTPUT_KHR,
+        })
+    } else {
+        this.rendered = true
+    }
+
     // waitInfo := semaphore_submit_info(frame.swapSema, {
     //     .COLOR_ATTACHMENT_OUTPUT_KHR,
     // })
 
     // Will signal the Canvas sync structures when the Commands Finish
-    submit := submit_info(&cmdInfo, &signalInfo, nil)
+    submit := submit_info(
+        &cmdInfo, &signalInfo,
+        waitInfo.sType == {} ? nil : &waitInfo,
+    );
 
     vkcheck(vk.QueueSubmit2(
         graphicsQueue, 1, &submit, renderFence
     ))
 
+    // Signal that we are Rendering.
     rendering = true
+    rendered = true
 
     // Canvas will need to wait before using this
-    if idx, ok := slice.linear_search(this.presenting[:], renderFence); !ok {
-        append(&this.presenting, renderFence)
+    if idx, ok := slice.linear_search(this.lock[:], renderFence); !ok {
+        append(&this.lock, renderFence)
     }
     
 }
@@ -311,6 +339,8 @@ canvas_present :: proc(
 
     // SUBMIT
     {
+        // TODO: What happens if we are already presenting this Canvas?
+
         cmdInfo := command_buffer_submit_info(cmd)
 
         signalInfo := semaphore_submit_info(frame.presentSema, {
@@ -338,9 +368,13 @@ canvas_present :: proc(
         ))
 
         // Canvas will need to wait before using this
-        if idx, ok := slice.linear_search(this.presenting[:], frame.renderFinished); !ok {
-            append(&this.presenting, frame.renderFinished)
+        if idx, ok := slice.linear_search(this.lock[:], frame.renderFinished); !ok {
+            append(&this.lock, frame.renderFinished)
         }
+
+        // We are Presenting this Frame (Semaphore has been Awaited)
+        //  signals the canvas that we should not await it's Semaphore
+        this.rendered = false
     }
 
     // Present

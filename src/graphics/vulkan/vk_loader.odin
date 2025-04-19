@@ -18,4 +18,6 @@ load_device :: proc(api: ^dev.API) {
     // api.end_frame = end_frame
 
     _canvas_api(api)
+    _shader_api(api)
+    _program_api(api)
 }

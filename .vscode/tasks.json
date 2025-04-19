@@ -10,6 +10,19 @@
     },
     "tasks": [
         {
+            "label": "compileShaders",
+            "type": "shell",
+            "command": "glslc",
+            "options": {
+                "cwd": "shaders/",
+            },
+            "args": [
+                "-o", "gradient.spv",
+                "--target-env=vulkan1.3",
+                "gradient.comp",
+            ]
+        },
+        {
             "label": "sandbox",
             "type": "shell",
             "command": "odin",

@@ -6,6 +6,8 @@ import "base:runtime"
 import "core:log"
 import deq "core:container/queue"
 
+import dev "../device"
+
 import vk "vendor:vulkan"
 
 
@@ -31,3 +33,18 @@ exec_queue :: proc(act: ^Action_Queue) {
 }
 
 destroy_queue :: deq.destroy
+
+stage_to_flags :: proc(stage: dev.Shader_Stage) -> vk.ShaderStageFlag {
+    switch stage {
+    case .Compute:  return .COMPUTE
+    case .Vertex:   return .VERTEX
+    case .Fragment: return .FRAGMENT
+    }
+    log.panicf("Unreachable: invalid stage {}", stage)
+}
+
+binding_type :: proc(type: dev.Binding_Type) -> vk.DescriptorType {
+    switch type {
+    case:  return .STORAGE_IMAGE
+    }
+}

@@ -6,3 +6,8 @@ ols.json
 
 # Test files
 sandbox.exe
+# Shaders
+shaders/**.spv
+
+
+
