@@ -32,23 +32,39 @@ Canvas_Vulkan :: struct {
     // 1: True if ops where submited to renderSema
     // 2: True if canvas has NOT been presented to a Swapchain
     rendering, rendered: bool,
-}
 
-Canvas_Frame :: struct {
+    // State: currently active command ?
+    commandState: struct {
+        active: bool,
 
+        bound: union {
+            ^Program_Vulkan,
+            // Brush ..
+        },
+        bind_writers: [4]Bind_Writer,
+    },
 }
 
 _canvas_api :: proc(api: ^dev.API) {
     using api.canvas
-    create = canvas_create
+    create  = canvas_create
     dispose = canvas_dispose
-    // present = canvas_present
+
+    begin = canvas_begin
+    end   = canvas_end
+
+    // bind = canvas_bind
+
+    // Command API
+    _canvas_cmd_api()
 }
 
 canvas_create :: proc(desc: dev.Canvas_Desc) -> ^dev.Canvas {
     using this := new(Canvas_Vulkan)
     
     lock = make([dynamic]vk.Fence)
+
+    size = { desc.width, desc.height }
 
     drawImageExent := vk.Extent3D {
         width = desc.width,
@@ -175,7 +191,7 @@ canvas_await :: proc(using this: ^Canvas_Vulkan) {
 
 }
 
-canvas_begin :: proc(ptr: ^dev.Canvas, pass: dev.Pass) {
+canvas_begin :: proc(ptr: ^dev.Canvas) -> dev.Cmd {
     using this := transmute(^Canvas_Vulkan) ptr
     using global
 
@@ -205,14 +221,21 @@ canvas_begin :: proc(ptr: ^dev.Canvas, pass: dev.Pass) {
         &clearValue, 1, &clearRange,
     )
 
+    commandState.active = true
     // log.info("Hello")
+    return dev.Cmd {
+        _vtable = &global.canvas_cmd,
+        ptr = ptr,
+    }
 }
 
-canvas_end :: proc(ptr: ^dev.Canvas, pass: dev.Pass) {
+canvas_end :: proc(ptr: ^dev.Canvas) {
     using this := transmute(^Canvas_Vulkan) ptr
     using global
 
     vkcheck(vk.EndCommandBuffer(cmd))
+
+    commandState.active = true
 
     // SUBMIT
     

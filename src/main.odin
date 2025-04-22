@@ -39,6 +39,21 @@ main :: proc() {
     })
     defer gfx.destroy_canvas(canvas)
 
+    gradient, sok := gfx.load_shader(gradientCS)
+    assert(sok, "Shader module could not be loaded!")
+    defer gfx.unload_shader(gradient)
+
+    program := gfx.create_program(gfx.Program_Desc {
+        shader = { gradient, .Compute, "main" },
+        bindings = {
+            0 = gfx.bindset(
+                { 0, .ImageStorage },
+
+            )
+        }
+    })
+    defer gfx.destroy_program(program)
+
     quit: bool
     for !quit {
         host.process()
@@ -52,11 +67,16 @@ main :: proc() {
             }
         }
 
-        gfx.begin_pass(canvas, {})
+        using gfx
+        cmd := begin(canvas)
+        cmd->use(program)
+        cmd->write(0, 0, canvas)
+        cmd->update()
+        cmd->dispatch(canvas.width, canvas.height, 1)
 
-        gfx.end_pass(canvas, {})
+        end(canvas)
 
-        gfx.present(canvas, win)
+        present(canvas, win)
         // gfx.begin_frame()
 
         

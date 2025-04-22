@@ -48,12 +48,17 @@ program_create :: proc(desc: dev.Program_Desc) -> ^dev.Program {
                 binding = bind_desc.binding,
                 descriptorType = binding_type(bind_desc.type),
                 descriptorCount = 1,
+                stageFlags = { .COMPUTE },
             }
         }
 
+        log.warn("BINDING:", bindings)
+
         info := vk.DescriptorSetLayoutCreateInfo {
             sType = .DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-
+            bindingCount = u32(len(bindings)),
+            pBindings = &bindings[0],
+            flags = { .PUSH_DESCRIPTOR_KHR },
         }
 
         current := sarr.len(descriptorLayouts)
@@ -70,6 +75,7 @@ program_create :: proc(desc: dev.Program_Desc) -> ^dev.Program {
     layoutInfo := vk.PipelineLayoutCreateInfo {
         sType = .PIPELINE_LAYOUT_CREATE_INFO,
         setLayoutCount = cast(u32) sarr.len(descriptorLayouts),
+        pSetLayouts = &descriptorLayouts.data[0],
     }
     if layoutInfo.setLayoutCount > 0 {
         layoutInfo.pSetLayouts = &descriptorLayouts.data[0]
@@ -106,6 +112,19 @@ program_create :: proc(desc: dev.Program_Desc) -> ^dev.Program {
 program_dispose :: proc(ptr: ^dev.Program) {
     using this := transmute(^Program_Vulkan) ptr
 
+    ld := global.device
+
+    vk.DeviceWaitIdle(ld) // TODO: Sync & Collect System
+
+    alck := global.allocationCallbacks
+
+    vk.DestroyPipeline(ld, pipeline, alck)
+    vk.DestroyPipelineLayout(ld, layout, alck)
+
+    for i in 0..<sarr.len(descriptorLayouts) {
+        set := descriptorLayouts.data[i]
+        vk.DestroyDescriptorSetLayout(ld, set, alck)
+    }
 }
 
 program_A :: proc(ptr: ^dev.Program) {

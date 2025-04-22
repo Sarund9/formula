@@ -6,7 +6,7 @@
         "focus": true,
         "panel": "shared",
         "showReuseMessage": false,
-        "clear": true
+        "clear": false
     },
     "tasks": [
         {

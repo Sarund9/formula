@@ -8,6 +8,7 @@ import "vulkan"
 
 
 API :: dev.API
+Cmd :: dev.Cmd
 
 Opt :: dev.Opt
 Device_Preference :: dev.Device_Preference
@@ -56,12 +57,14 @@ destroy_canvas :: proc(canvas: ^Canvas) {
     free(canvas)
 }
 
-begin_pass :: proc(canvas: ^Canvas, pass: Pass) {
-    global.api.begin_pass(canvas, pass)
+begin :: proc(canvas: ^Canvas) -> Cmd {
+    using global
+    return api.canvas.begin(canvas)
 }
 
-end_pass :: proc(canvas: ^Canvas, pass: Pass) {
-    global.api.end_pass(canvas, pass)
+end :: proc(canvas: ^Canvas) {
+    using global
+    api.canvas.end(canvas)
 }
 
 present :: proc(canvas: ^Canvas, window: host.Window) {
@@ -72,11 +75,28 @@ load_shader :: proc(code: []byte) -> (Shader_Module, bool) {
     return global.api.shader.load(code)
 }
 
+unload_shader :: proc(mod: Shader_Module) {
+    global.api.shader.unload(mod)
+}
+
 destroy_shader :: proc(mod: Shader_Module) {
     global.api.shader.unload(mod)
 }
 
 create_program :: proc(desc: Program_Desc) -> ^Program {
     return global.api.program.create(desc)
+}
+
+destroy_program :: proc(program: ^Program) {
+    global.api.program.dispose(program)
+    free(program)
+}
+
+bindset :: proc(
+    binds: ..Binding_Desc, allocator := context.temp_allocator,
+) -> []Binding_Desc {
+    data := make([]Binding_Desc, len(binds), allocator)
+    copy_slice(data, binds)
+    return data
 }
 

@@ -9,6 +9,8 @@ import "formula:host"
 import vma "formula:vendor/odin-vma"
 import vk "vendor:vulkan"
 
+import dev "../device"
+
 
 global: Global
 
@@ -40,6 +42,8 @@ Global :: struct {
     // Drawing Structures
 
     globalDeletionQueue: Action_Queue,
+
+    canvas_cmd: dev.ICommand,
 }
 
 Frame :: struct {

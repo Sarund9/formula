@@ -45,6 +45,7 @@ stage_to_flags :: proc(stage: dev.Shader_Stage) -> vk.ShaderStageFlag {
 
 binding_type :: proc(type: dev.Binding_Type) -> vk.DescriptorType {
     switch type {
-    case:  return .STORAGE_IMAGE
+    case .ImageStorage: return .STORAGE_IMAGE
+    case: log.panic("Unknown Binding Type:", type)
     }
 }

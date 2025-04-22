@@ -199,8 +199,12 @@ pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
         // Pick the only available Device
         physicalDevice = physicalDevices[0]
         pref := tovk(opt.deviceTypePreference)
-        props: vk.PhysicalDeviceProperties
-        vk.GetPhysicalDeviceProperties(physicalDevice, &props)
+
+        caps := get_physical_capabilities(physicalDevice)
+
+        props := &caps.properties.properties
+        // props: vk.PhysicalDeviceProperties
+        // vk.GetPhysicalDeviceProperties(physicalDevice, &props)
         if opt.forceDeviceType {
             log.assertf(props.deviceType == pref,
                 "Cannot initialize Vulkan for device of type: '{}', " +
@@ -209,6 +213,17 @@ pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
                 cstring(&props.deviceName[0]), props.deviceType,
             )
         }
+
+
+        maxPushDescript := caps.pushDescript.maxPushDescriptors
+
+        log.assertf(maxPushDescript > 0,
+            "Cannot initialize Vulkan, the only device: '{}', " +
+            " does not have support for Push Descriptors",
+            cstring(&props.deviceName[0]),
+        )
+        // log.warn("Max Push Descriptors: ", maxPushDescript)
+
         indices := findFamilies(physicalDevice, surface)
         log.assertf(familyComplete(indices),
             "Cannot initialize Vulkan, the only device: '{}', " +
@@ -232,11 +247,13 @@ pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
         score := min(int)
         pref := tovk(opt.deviceTypePreference)
         for device in physicalDevices {
-            props: vk.PhysicalDeviceProperties
-            vk.GetPhysicalDeviceProperties(device, &props)
+            caps := get_physical_capabilities(physicalDevice)
 
-            feats: vk.PhysicalDeviceFeatures
-            vk.GetPhysicalDeviceFeatures(device, &feats)
+            // props: vk.PhysicalDeviceProperties
+            // vk.GetPhysicalDeviceProperties(device, &props)
+
+            // feats: vk.PhysicalDeviceFeatures
+            // vk.GetPhysicalDeviceFeatures(device, &feats)
 
             indices := findFamilies(physicalDevice, surface)
             swapsupport := query_swapchain_support(
@@ -248,6 +265,8 @@ pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
             if !swapchain_supported(swapsupport) do continue
 
             currentScore := 0
+
+            props := &caps.properties.properties
 
             // Force selection of specific device type
             if opt.forceDeviceType && props.deviceType != pref {
@@ -289,23 +308,23 @@ pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
 
     // Image Properties Check
     {
-        imginfo := vk.PhysicalDeviceImageFormatInfo2 {
-            sType = .PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
-            format = .R16G16B16A16_SFLOAT,
-            type = .D2,
-            tiling = .OPTIMAL,
-            usage = { .TRANSFER_DST, .TRANSFER_SRC, },
-        }
-        imgprops := vk.ImageFormatProperties2 {
-            sType = .IMAGE_FORMAT_PROPERTIES_2,
-            imageFormatProperties = {
+        // imginfo := vk.PhysicalDeviceImageFormatInfo2 {
+        //     sType = .PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
+        //     format = .R16G16B16A16_SFLOAT,
+        //     type = .D2,
+        //     tiling = .OPTIMAL,
+        //     usage = { .TRANSFER_DST, .TRANSFER_SRC, },
+        // }
+        // imgprops := vk.ImageFormatProperties2 {
+        //     sType = .IMAGE_FORMAT_PROPERTIES_2,
+        //     imageFormatProperties = {
 
-            }
-        }
-        res := vk.GetPhysicalDeviceImageFormatProperties2(
-            physicalDevice, &imginfo, &imgprops,
-        )
-        log.assertf(res == .SUCCESS, "IMAGE FORMAT: {}", res)
+        //     }
+        // }
+        // res := vk.GetPhysicalDeviceImageFormatProperties2(
+        //     physicalDevice, &imginfo, &imgprops,
+        // )
+        // log.assertf(res == .SUCCESS, "IMAGE FORMAT: {}", res)
     }
     // log.infof("Device Image Properties", imginfo.)
 
@@ -321,6 +340,32 @@ pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
         }
         unreachable()
     }
+}
+
+Physical_Device_Capabilities :: struct {
+    properties: vk.PhysicalDeviceProperties2,
+    features: vk.PhysicalDeviceFeatures,
+    pushDescript: vk.PhysicalDevicePushDescriptorPropertiesKHR,
+}
+
+get_physical_capabilities :: proc(
+    physicalDevice: vk.PhysicalDevice,
+) -> Physical_Device_Capabilities {
+    
+    cap: Physical_Device_Capabilities
+    cap.properties = vk.PhysicalDeviceProperties2 {
+        sType = .PHYSICAL_DEVICE_PROPERTIES_2,
+        pNext = &cap.pushDescript,
+    }
+
+    cap.pushDescript = vk.PhysicalDevicePushDescriptorPropertiesKHR {
+        sType = .PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES_KHR,
+    }
+
+    vk.GetPhysicalDeviceProperties2(physicalDevice, &cap.properties)
+    vk.GetPhysicalDeviceFeatures(physicalDevice, &cap.features)
+
+    return cap
 }
 
 @(private="file")
@@ -371,6 +416,7 @@ create_logical_device :: proc(surface: vk.SurfaceKHR) {
     deviceExtensions := make([dynamic]cstring)
     defer delete(deviceExtensions)
     append(&deviceExtensions, vk.KHR_SWAPCHAIN_EXTENSION_NAME)
+    append(&deviceExtensions, vk.KHR_PUSH_DESCRIPTOR_EXTENSION_NAME)
 
     createInfo := vk.DeviceCreateInfo {
         sType = .DEVICE_CREATE_INFO,
