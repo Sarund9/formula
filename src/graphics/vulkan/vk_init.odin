@@ -64,6 +64,8 @@ shutdown :: proc() {
 
     vk.DeviceWaitIdle(device)
 
+    collect()
+
     // for &frame in frames {
     //     vk.DestroyCommandPool(device, frame.commandPool, allocationCallbacks)
     //     vk.DestroyFence(device, frame.renderFinished, allocationCallbacks)

@@ -71,6 +71,10 @@ present :: proc(canvas: ^Canvas, window: host.Window) {
     global.api.present(canvas, window)
 }
 
+collect :: proc() {
+    global.api.collect()
+}
+
 load_shader :: proc(code: []byte) -> (Shader_Module, bool) {
     return global.api.shader.load(code)
 }

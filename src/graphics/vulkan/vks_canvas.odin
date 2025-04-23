@@ -148,15 +148,21 @@ canvas_create :: proc(desc: dev.Canvas_Desc) -> ^dev.Canvas {
 }
 
 canvas_dispose :: proc(ptr: ^dev.Canvas) {
-    using this := transmute(^Canvas_Vulkan) ptr
-    using global
-    canvas_await(this) // Wait
-    delete(lock)
-    vk.DestroyCommandPool(device, commandPool, allocationCallbacks)
-    vk.DestroyFence(device, renderFence, allocationCallbacks)
-    vk.DestroySemaphore(device, renderSema, allocationCallbacks)
-    vk.DestroyImageView(device, image.imageView, allocationCallbacks)
-    vma.DestroyImage(allocator, image.image, image.allocation)
+
+    qcollect(ptr, proc(ptr: rawptr) {
+        using this := transmute(^Canvas_Vulkan) ptr
+        using global
+        canvas_await(this) // Wait
+        delete(lock)
+
+        // TODO: Remove Fences from Resources locked by this Canvas ?
+
+        vk.DestroyCommandPool(device, commandPool, allocationCallbacks)
+        vk.DestroyFence(device, renderFence, allocationCallbacks)
+        vk.DestroySemaphore(device, renderSema, allocationCallbacks)
+        vk.DestroyImageView(device, image.imageView, allocationCallbacks)
+        vma.DestroyImage(allocator, image.image, image.allocation)
+    })
 }
 
 @(private="file")

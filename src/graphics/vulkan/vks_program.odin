@@ -16,6 +16,8 @@ import vk "vendor:vulkan"
 Program_Vulkan :: struct {
     using __base: dev.Program,
 
+    lock: Lock,
+
     layout: vk.PipelineLayout,
     descriptorLayouts: sarr.Small_Array(4, vk.DescriptorSetLayout),
     pipeline: vk.Pipeline,
@@ -110,21 +112,23 @@ program_create :: proc(desc: dev.Program_Desc) -> ^dev.Program {
 }
 
 program_dispose :: proc(ptr: ^dev.Program) {
-    using this := transmute(^Program_Vulkan) ptr
+    qcollect(ptr, proc(ptr: rawptr) {
+        using this := transmute(^Program_Vulkan) ptr
 
-    ld := global.device
+        await(&lock)
+        delete(lock)
 
-    vk.DeviceWaitIdle(ld) // TODO: Sync & Collect System
+        ld := global.device
+        alck := global.allocationCallbacks
 
-    alck := global.allocationCallbacks
+        vk.DestroyPipeline(ld, pipeline, alck)
+        vk.DestroyPipelineLayout(ld, layout, alck)
 
-    vk.DestroyPipeline(ld, pipeline, alck)
-    vk.DestroyPipelineLayout(ld, layout, alck)
-
-    for i in 0..<sarr.len(descriptorLayouts) {
-        set := descriptorLayouts.data[i]
-        vk.DestroyDescriptorSetLayout(ld, set, alck)
-    }
+        for i in 0..<sarr.len(descriptorLayouts) {
+            set := descriptorLayouts.data[i]
+            vk.DestroyDescriptorSetLayout(ld, set, alck)
+        }
+    })
 }
 
 program_A :: proc(ptr: ^dev.Program) {

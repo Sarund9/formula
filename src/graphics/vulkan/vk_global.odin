@@ -4,6 +4,7 @@ package vulkandevice
 
 import "base:runtime"
 import "core:log"
+import deq "core:container/queue"
 
 import "formula:host"
 import vma "formula:vendor/odin-vma"
@@ -44,16 +45,25 @@ Global :: struct {
     globalDeletionQueue: Action_Queue,
 
     canvas_cmd: dev.ICommand,
-}
 
-Frame :: struct {
-    commandPool: vk.CommandPool,
-    mainCommandBuffer: vk.CommandBuffer,
-
-    swapSema, presentSema: vk.Semaphore,
-    renderFinished: vk.Fence,
-
-    deletionQueue: Action_Queue,
+    collectQueue: Action_Queue,
 }
 
 ONE_SECOND :: 1000000000
+
+collect :: proc() {
+    using global
+
+    exec_queue(&collectQueue)
+}
+
+qcollect :: proc(data: rawptr, procedure: proc(rawptr)) {
+    using global
+
+    deq.push(&collectQueue, Action {
+        data = data,
+        procedure = procedure,
+    })
+}
+
+

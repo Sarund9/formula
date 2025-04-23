@@ -91,6 +91,11 @@ canvas_cmd_use :: proc(_cmd: ^dev.Cmd, _program: ^dev.Program) {
 
     commandState.bound = program
 
+    // For this program to be used, must await the Canvas
+    post(&program.lock, renderFence)
+    // TODO: Better sync System
+    
+
     // if writer.valid {
     //     writer.valid = false
     //     delete(set.writes)

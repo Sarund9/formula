@@ -49,3 +49,26 @@ binding_type :: proc(type: dev.Binding_Type) -> vk.DescriptorType {
     case: log.panic("Unknown Binding Type:", type)
     }
 }
+
+
+Lock :: [dynamic]vk.Fence
+
+await :: proc(lock: ^Lock) {
+    if len(lock) == 0 do return
+
+    device := global.device
+
+    vkcheck(vk.WaitForFences(
+        device, u32(len(lock)), &lock[0],
+        true, ONE_SECOND,
+    ))
+    clear(lock)
+}
+
+post :: proc(lock: ^Lock, fence: vk.Fence) {
+    for item in lock {
+        if item == fence do return
+    }
+    append(lock, fence)
+}
+

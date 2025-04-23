@@ -68,6 +68,9 @@ main :: proc() {
         }
 
         using gfx
+
+        collect()
+
         cmd := begin(canvas)
         cmd->use(program)
         cmd->write(0, 0, canvas)

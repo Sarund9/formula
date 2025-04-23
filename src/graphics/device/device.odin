@@ -12,6 +12,8 @@ API :: struct {
 
     present: proc(^Canvas, host.Window),
 
+    collect: proc(),
+
     canvas: struct {
         create: proc(desc: Canvas_Desc) -> ^Canvas,
         dispose: proc(^Canvas),
