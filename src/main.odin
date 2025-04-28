@@ -4,10 +4,17 @@ package main
 import "core:log"
 import "core:os"
 
+import cm "common"
 import "host"
 import gfx "graphics"
 
 
+Push_Const :: struct {
+    data1,
+    data2,
+    data3,
+    data4: cm.Vec4,
+}
 
 
 main :: proc() {
@@ -50,9 +57,15 @@ main :: proc() {
                 { 0, .ImageStorage },
 
             )
-        }
+        },
+        push_uniforms = gfx.pushdata(Push_Const),
     })
     defer gfx.destroy_program(program)
+
+    const := Push_Const {
+        data1 = { 1, 0, 0, 1 },
+        data2 = { 0, 0, 1, 1 },
+    }
 
     quit: bool
     for !quit {
@@ -75,6 +88,10 @@ main :: proc() {
         cmd->use(program)
         cmd->write(0, 0, canvas)
         cmd->update()
+        cmd->push(&Push_Const {
+            data1 = { 0.94, 0.05, 0.18, 1 },
+            data2 = { 0.07, 0.91, 0.74, 1 },
+        })
         cmd->dispatch(canvas.width, canvas.height, 1)
 
         end(canvas)

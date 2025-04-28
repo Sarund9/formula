@@ -20,6 +20,8 @@ Program_Vulkan :: struct {
 
     layout: vk.PipelineLayout,
     descriptorLayouts: sarr.Small_Array(4, vk.DescriptorSetLayout),
+    pushUniformSize: u32,
+
     pipeline: vk.Pipeline,
 }
 
@@ -81,6 +83,17 @@ program_create :: proc(desc: dev.Program_Desc) -> ^dev.Program {
     }
     if layoutInfo.setLayoutCount > 0 {
         layoutInfo.pSetLayouts = &descriptorLayouts.data[0]
+    }
+
+    // Push Const
+    pushConstant := vk.PushConstantRange {
+        size = desc.push_uniforms.size,
+        stageFlags = { .COMPUTE },
+    }
+    if desc.push_uniforms.size > 0 {
+        pushUniformSize = desc.push_uniforms.size
+        layoutInfo.pushConstantRangeCount = 1
+        layoutInfo.pPushConstantRanges = &pushConstant
     }
 
     vkcheck(vk.CreatePipelineLayout(

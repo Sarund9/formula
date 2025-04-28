@@ -56,6 +56,7 @@ ICommand :: struct {
     use: proc(self: ^Cmd, program: ^Program),
     write: proc(self: ^Cmd, set, slot: u32, binding: Binding),
     update: proc(self: ^Cmd),
+    push: proc(self: ^Cmd, data: rawptr),
     dispatch: proc(self: ^Cmd, x, y, z: u32),
 }
 
@@ -101,6 +102,7 @@ Program :: struct {
 Program_Desc :: struct {
     shader: Shader_Desc,
     bindings: [4][]Binding_Desc,
+    push_uniforms: Push_Uniform_Desc,
 }
 
 Shader_Desc :: struct {
@@ -120,4 +122,8 @@ Binding_Desc :: struct {
 
 Binding_Type :: enum {
     ImageStorage,
+}
+
+Push_Uniform_Desc :: struct {
+    size: u32,
 }

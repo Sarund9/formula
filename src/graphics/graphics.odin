@@ -22,8 +22,12 @@ Shader_Stage  :: dev.Shader_Stage
 Program       :: dev.Program
 Program_Desc  :: dev.Program_Desc
 Shader_Desc   :: dev.Shader_Desc
+
+Binding       :: dev.Binding
 Binding_Desc  :: dev.Binding_Desc
 Binding_Type  :: dev.Binding_Type
+
+Push_Uniform_Desc :: dev.Push_Uniform_Desc
 
 
 @private
@@ -104,3 +108,8 @@ bindset :: proc(
     return data
 }
 
+pushdata :: proc($T: typeid) -> Push_Uniform_Desc {
+    return {
+        size = size_of(T),
+    }
+}

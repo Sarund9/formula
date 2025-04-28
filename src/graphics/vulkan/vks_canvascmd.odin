@@ -25,6 +25,7 @@ _canvas_cmd_api :: proc() {
 
     write  = canvas_cmd_write
     update = canvas_cmd_update
+    push   = canvas_cmd_push
 }
 
 Bind_Writer :: struct {
@@ -172,6 +173,31 @@ canvas_cmd_update :: proc(
     //     cmd, .COMPUTE, 0, 0, 
     // )
     
+}
+
+canvas_cmd_push :: proc(
+    _cmd: ^dev.Cmd,
+
+    data: rawptr,
+) {
+    using this := transmute(^Canvas_Vulkan) _cmd.ptr
+
+    layout: vk.PipelineLayout
+    flags: vk.ShaderStageFlags
+    push_size: u32
+    switch b in commandState.bound {
+    case ^Program_Vulkan:
+        layout = b.layout
+        push_size = b.pushUniformSize
+        flags = { .COMPUTE }
+    case:
+        log.error(
+            "Cannot write Binding! Nothing bound to Canvas!",
+        )
+        return
+    }
+
+    vk.CmdPushConstants(cmd, layout, flags, 0, push_size, data)
 }
 
 canvas_cmd_dispatch :: proc(
