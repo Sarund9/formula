@@ -17,15 +17,15 @@ import vk "vendor:vulkan"
 
 
 _canvas_cmd_api :: proc() {
-    using cmd := &global.canvas_cmd
+    cmd := &G.canvas_cmd
 
     // Compute Programs
-    use      = canvas_cmd_use
-    dispatch = canvas_cmd_dispatch
+    cmd.use      = canvas_cmd_use
+    cmd.dispatch = canvas_cmd_dispatch
 
-    write  = canvas_cmd_write
-    update = canvas_cmd_update
-    push   = canvas_cmd_push
+    cmd.write  = canvas_cmd_write
+    cmd.update = canvas_cmd_update
+    cmd.push   = canvas_cmd_push
 }
 
 Bind_Writer :: struct {
@@ -145,8 +145,7 @@ canvas_cmd_update :: proc(
     _cmd: ^dev.Cmd,
 ) {
     using this := transmute(^Canvas_Vulkan) _cmd.ptr
-    using global
-
+    
     for &set, idx in commandState.bind_writers {
         if !set.valid do continue
 
@@ -206,7 +205,6 @@ canvas_cmd_dispatch :: proc(
     x, y, z: u32,
 ) {
     using this := transmute(^Canvas_Vulkan) _cmd.ptr
-    using global
 
     vk.CmdDispatch(cmd, x, y, z)
 }

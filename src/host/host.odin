@@ -1,4 +1,4 @@
-package host
+package formula_host
 
 
 import "base:runtime"
@@ -18,8 +18,7 @@ global: struct {
 }
 
 initialize :: proc() {
-    using global
-    _context = context
+    global._context = context
 
     _initialize()
 }

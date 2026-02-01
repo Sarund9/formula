@@ -26,10 +26,8 @@ Program_Vulkan :: struct {
 }
 
 _program_api :: proc(api: ^dev.API) {
-    using api.program
-
-    create  = program_create
-    dispose = program_dispose
+    api.program.create  = program_create
+    api.program.dispose = program_dispose
 }
 
 program_create :: proc(desc: dev.Program_Desc) -> ^dev.Program {
@@ -69,7 +67,7 @@ program_create :: proc(desc: dev.Program_Desc) -> ^dev.Program {
         sarr.append(&descriptorLayouts, vk.DescriptorSetLayout {})
 
         vkcheck(vk.CreateDescriptorSetLayout(
-            global.device, &info, global.allocationCallbacks,
+            G.device, &info, G.allocationCallbacks,
             &descriptorLayouts.data[current],
         ))
 
@@ -97,8 +95,8 @@ program_create :: proc(desc: dev.Program_Desc) -> ^dev.Program {
     }
 
     vkcheck(vk.CreatePipelineLayout(
-        global.device, &layoutInfo,
-        global.allocationCallbacks, &layout,
+        G.device, &layoutInfo,
+        G.allocationCallbacks, &layout,
     ))
 
     // Pipeline
@@ -118,7 +116,7 @@ program_create :: proc(desc: dev.Program_Desc) -> ^dev.Program {
     }
 
     vkcheck(vk.CreateComputePipelines(
-        global.device, 0, 1, &pipelineInfo, nil, &pipeline,
+        G.device, 0, 1, &pipelineInfo, nil, &pipeline,
     ))
 
     return this
@@ -131,8 +129,8 @@ program_dispose :: proc(ptr: ^dev.Program) {
         await(&lock)
         delete(lock)
 
-        ld := global.device
-        alck := global.allocationCallbacks
+        ld := G.device
+        alck := G.allocationCallbacks
 
         vk.DestroyPipeline(ld, pipeline, alck)
         vk.DestroyPipelineLayout(ld, layout, alck)

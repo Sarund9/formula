@@ -1,5 +1,5 @@
 //#+private
-package host
+package formula_host
 
 
 import "base:runtime"

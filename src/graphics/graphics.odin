@@ -31,72 +31,68 @@ Push_Uniform_Desc :: dev.Push_Uniform_Desc
 
 
 @private
-global: struct {
+G: struct {
     api: API,
 
 }
 
 
 initialize :: proc(initial_window: host.Window, opt: Opt) {
-    using global
 
-    vulkan.load_device(&api)
+    vulkan.load_device(&G.api)
 
-    api.inititialize(opt, initial_window)
+    G.api.inititialize(opt, initial_window)
 }
 
 shutdown :: proc() {
-    using global
 
-    api.shutdown()
+    G.api.shutdown()
 }
 
 create_canvas :: proc(desc: Canvas_Desc) -> ^Canvas {
     // TODO: Validate desc (eg width/height > 0)
-    return global.api.canvas.create(desc)
+    return G.api.canvas.create(desc)
 }
 
 destroy_canvas :: proc(canvas: ^Canvas) {
-    global.api.canvas.dispose(canvas)
+    G.api.canvas.dispose(canvas)
     free(canvas)
 }
 
 begin :: proc(canvas: ^Canvas) -> Cmd {
-    using global
-    return api.canvas.begin(canvas)
+    return G.api.canvas.begin(canvas)
 }
 
 end :: proc(canvas: ^Canvas) {
-    using global
-    api.canvas.end(canvas)
+    G.api.canvas.end(canvas)
 }
 
 present :: proc(canvas: ^Canvas, window: host.Window) {
-    global.api.present(canvas, window)
+    G.api.present(canvas, window)
 }
 
 collect :: proc() {
-    global.api.collect()
+    G.api.collect()
 }
 
 load_shader :: proc(code: []byte) -> (Shader_Module, bool) {
-    return global.api.shader.load(code)
+    return G.api.shader.load(code)
 }
 
 unload_shader :: proc(mod: Shader_Module) {
-    global.api.shader.unload(mod)
+    G.api.shader.unload(mod)
 }
 
 destroy_shader :: proc(mod: Shader_Module) {
-    global.api.shader.unload(mod)
+    G.api.shader.unload(mod)
 }
 
 create_program :: proc(desc: Program_Desc) -> ^Program {
-    return global.api.program.create(desc)
+    return G.api.program.create(desc)
 }
 
 destroy_program :: proc(program: ^Program) {
-    global.api.program.dispose(program)
+    G.api.program.dispose(program)
     free(program)
 }
 

@@ -13,9 +13,8 @@ import vk "vendor:vulkan"
 
 
 _shader_api :: proc(api: ^dev.API) {
-    using api.shader
-    load = shader_load
-    unload = shader_unload
+    api.shader.load = shader_load
+    api.shader.unload = shader_unload
 }
 
 shader_load :: proc(
@@ -32,8 +31,8 @@ shader_load :: proc(
     module: vk.ShaderModule
 
     res := vk.CreateShaderModule(
-        global.device, &createInfo,
-        global.allocationCallbacks, &module,
+        G.device, &createInfo,
+        G.allocationCallbacks, &module,
     )
 
     if res == .SUCCESS {
@@ -48,5 +47,5 @@ shader_unload :: proc(mod: dev.Shader_Module) {
     modvk := transmute(vk.ShaderModule) mod
 
     vk.DestroyShaderModule(
-        global.device, modvk, global.allocationCallbacks)
+        G.device, modvk, G.allocationCallbacks)
 }

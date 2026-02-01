@@ -58,7 +58,7 @@ finalize :: proc(
 
     set: vk.DescriptorSetLayout
     vkcheck(vk.CreateDescriptorSetLayout(
-        global.device, &info, global.allocationCallbacks,
+        G.device, &info, G.allocationCallbacks,
         &set,
     ))
 
@@ -78,21 +78,21 @@ Pool_Size_Ratio :: struct {
 }
 
 @(private="file")
-get_pool :: proc(using alloc: ^Descriptor_Allocator) -> vk.DescriptorPool {
-    if len(readyPools) > 0 {
-        return pop(&readyPools)
+get_pool :: proc(alloc: ^Descriptor_Allocator) -> vk.DescriptorPool {
+    if len(alloc.readyPools) > 0 {
+        return pop(&alloc.readyPools)
     }
-    newPool := create_pool(alloc, setsPerPool, ratios[:])
+    newPool := create_pool(alloc, alloc.setsPerPool, alloc.ratios[:])
 
-    setsPerPool = u32(f32(setsPerPool) * 1.5)
-    setsPerPool = min(setsPerPool, 4092)
+    alloc.setsPerPool = u32(f32(alloc.setsPerPool) * 1.5)
+    alloc.setsPerPool = min(alloc.setsPerPool, 4092)
 
     return newPool
 }
 
 @(private="file")
 create_pool :: proc(
-    using alloc: ^Descriptor_Allocator,
+    alloc: ^Descriptor_Allocator,
     setCount: u32, poolRatios: []Pool_Size_Ratio,
 ) -> vk.DescriptorPool {
     poolSizes := make(
@@ -115,8 +115,8 @@ create_pool :: proc(
 
     newPool: vk.DescriptorPool
     vk.CreateDescriptorPool(
-        global.device, &poolInfo,
-        global.allocationCallbacks,
+        G.device, &poolInfo,
+        G.allocationCallbacks,
         &newPool,
     )
 
@@ -124,36 +124,36 @@ create_pool :: proc(
 }
 
 pool_create :: proc(
-    using alloc: ^Descriptor_Allocator,
+    alloc: ^Descriptor_Allocator,
 ) {
-    ratios = make([dynamic]Pool_Size_Ratio)
-    fullPools = make([dynamic]vk.DescriptorPool)
-    readyPools = make([dynamic]vk.DescriptorPool)
+    alloc.ratios = make([dynamic]Pool_Size_Ratio)
+    alloc.fullPools = make([dynamic]vk.DescriptorPool)
+    alloc.readyPools = make([dynamic]vk.DescriptorPool)
 }
 
 pool_destroy :: proc(
-    using alloc: ^Descriptor_Allocator,
+    alloc: ^Descriptor_Allocator,
 ) {
-    delete(ratios)
-    delete(fullPools)
-    delete(readyPools)
+    delete(alloc.ratios)
+    delete(alloc.fullPools)
+    delete(alloc.readyPools)
 }
 
 init_pool :: proc(
-    using alloc: ^Descriptor_Allocator,
+    alloc: ^Descriptor_Allocator,
     maxSets: u32, poolRatios: []Pool_Size_Ratio,
 ) {
-    clear(&ratios)
+    clear(&alloc.ratios)
 
     for rat in poolRatios {
-        append(&ratios, rat)
+        append(&alloc.ratios, rat)
     }
 
     newPool := create_pool(alloc, maxSets, poolRatios)
 
-    setsPerPool = u32(f32(maxSets) * 1.5)
+    alloc.setsPerPool = u32(f32(maxSets) * 1.5)
 
-    append(&readyPools, newPool)
+    append(&alloc.readyPools, newPool)
 
     // poolSizes := make(
     //     []vk.DescriptorPoolSize,
@@ -180,7 +180,7 @@ init_pool :: proc(
     // ))
 }
 
-clear_pools :: proc(using alloc: ^Descriptor_Allocator) {
+clear_pools :: proc(alloc: ^Descriptor_Allocator) {
 
 }
 

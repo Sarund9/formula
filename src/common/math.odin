@@ -1,4 +1,4 @@
-package common
+package formula_common
 
 
 import glm "core:math/linalg/glsl"
@@ -11,3 +11,8 @@ Vec4 :: glm.vec4
 Mat4 :: glm.mat4
 
 Quat :: glm.quat
+
+Area :: struct {
+    x, y, width, height: f32,
+}
+

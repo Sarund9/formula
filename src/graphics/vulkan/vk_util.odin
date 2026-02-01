@@ -56,7 +56,7 @@ Lock :: [dynamic]vk.Fence
 await :: proc(lock: ^Lock) {
     if len(lock) == 0 do return
 
-    device := global.device
+    device := G.device
 
     vkcheck(vk.WaitForFences(
         device, u32(len(lock)), &lock[0],

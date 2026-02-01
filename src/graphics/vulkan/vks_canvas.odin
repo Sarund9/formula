@@ -46,12 +46,11 @@ Canvas_Vulkan :: struct {
 }
 
 _canvas_api :: proc(api: ^dev.API) {
-    using api.canvas
-    create  = canvas_create
-    dispose = canvas_dispose
+    api.canvas.create  = canvas_create
+    api.canvas.dispose = canvas_dispose
 
-    begin = canvas_begin
-    end   = canvas_end
+    api.canvas.begin = canvas_begin
+    api.canvas.end   = canvas_end
 
     // bind = canvas_bind
 
@@ -94,7 +93,7 @@ canvas_create :: proc(desc: dev.Canvas_Desc) -> ^dev.Canvas {
 
     // Create the Image
     vkcheck(vma.CreateImage(
-        global.allocator, &imgInfo, &imgAllocInfo,
+        G.allocator, &imgInfo, &imgAllocInfo,
         &image.image, &image.allocation, nil,
     ))
 
@@ -103,7 +102,7 @@ canvas_create :: proc(desc: dev.Canvas_Desc) -> ^dev.Canvas {
         image.imageFormat, image.image, { .COLOR },
     )
     vkcheck(vk.CreateImageView(
-        global.device, &viewInfo, global.allocationCallbacks,
+        G.device, &viewInfo, G.allocationCallbacks,
         &image.imageView,
     ))
 
@@ -112,11 +111,11 @@ canvas_create :: proc(desc: dev.Canvas_Desc) -> ^dev.Canvas {
         poolInfo := vk.CommandPoolCreateInfo {
             sType = .COMMAND_POOL_CREATE_INFO,
             flags = { .RESET_COMMAND_BUFFER },
-            queueFamilyIndex = global.graphicsQueueFamily,
+            queueFamilyIndex = G.graphicsQueueFamily,
         }
 
         vkcheck(vk.CreateCommandPool(
-            global.device, &poolInfo, global.allocationCallbacks, &commandPool,
+            G.device, &poolInfo, G.allocationCallbacks, &commandPool,
         ))
 
         cmdAllocInfo := vk.CommandBufferAllocateInfo {
@@ -127,7 +126,7 @@ canvas_create :: proc(desc: dev.Canvas_Desc) -> ^dev.Canvas {
         }
 
         vkcheck(vk.AllocateCommandBuffers(
-            global.device, &cmdAllocInfo, &cmd,
+            G.device, &cmdAllocInfo, &cmd,
         ))
     }
 
@@ -136,8 +135,8 @@ canvas_create :: proc(desc: dev.Canvas_Desc) -> ^dev.Canvas {
         fenceInfo := fence_create_info({ })
         semaInfo := semaphore_create_info({})
 
-        ld := global.device
-        alck := global.allocationCallbacks
+        ld := G.device
+        alck := G.allocationCallbacks
 
         vkcheck(vk.CreateFence(ld, &fenceInfo, alck, &renderFence))
 
@@ -151,36 +150,36 @@ canvas_dispose :: proc(ptr: ^dev.Canvas) {
 
     qcollect(ptr, proc(ptr: rawptr) {
         using this := transmute(^Canvas_Vulkan) ptr
-        using global
+        
         canvas_await(this) // Wait
         delete(lock)
 
         // TODO: Remove Fences from Resources locked by this Canvas ?
 
-        vk.DestroyCommandPool(device, commandPool, allocationCallbacks)
-        vk.DestroyFence(device, renderFence, allocationCallbacks)
-        vk.DestroySemaphore(device, renderSema, allocationCallbacks)
-        vk.DestroyImageView(device, image.imageView, allocationCallbacks)
-        vma.DestroyImage(allocator, image.image, image.allocation)
+        vk.DestroyCommandPool(G.device, commandPool, G.allocationCallbacks)
+        vk.DestroyFence(G.device, renderFence, G.allocationCallbacks)
+        vk.DestroySemaphore(G.device, renderSema, G.allocationCallbacks)
+        vk.DestroyImageView(G.device, image.imageView, G.allocationCallbacks)
+        vma.DestroyImage(G.allocator, image.image, image.allocation)
     })
 }
 
 @(private="file")
-canvas_await :: proc(using this: ^Canvas_Vulkan) {
-    if len(lock) == 0 do return
+canvas_await :: proc(canv: ^Canvas_Vulkan) {
+    if len(canv.lock) == 0 do return
     
-    device := global.device
+    device := G.device
 
     vkcheck(vk.WaitForFences(
-        device, u32(len(lock)), &lock[0],
+        device, u32(len(canv.lock)), &canv.lock[0],
         true, ONE_SECOND,
     ))
-    clear(&lock)
+    clear(&canv.lock)
 
     // If we were drawing to this, we must Reset the fence.
-    if rendering {
+    if canv.rendering {
         vkcheck(vk.ResetFences(
-            device, 1, &renderFence,
+            device, 1, &canv.renderFence,
         ))
 
         // If we have not presented this Frame to some Swapchain.
@@ -192,15 +191,14 @@ canvas_await :: proc(using this: ^Canvas_Vulkan) {
         //     this.presenting = false
         // }
 
-        rendering = false // 
+        canv.rendering = false // 
     }
 
 }
 
 canvas_begin :: proc(ptr: ^dev.Canvas) -> dev.Cmd {
     using this := transmute(^Canvas_Vulkan) ptr
-    using global
-
+    
     // Await all currently presenting Swapchains
     // And rendering operations
     canvas_await(this)
@@ -230,15 +228,14 @@ canvas_begin :: proc(ptr: ^dev.Canvas) -> dev.Cmd {
     commandState.active = true
     // log.info("Hello")
     return dev.Cmd {
-        _vtable = &global.canvas_cmd,
+        _vtable = &G.canvas_cmd,
         ptr = ptr,
     }
 }
 
 canvas_end :: proc(ptr: ^dev.Canvas) {
     using this := transmute(^Canvas_Vulkan) ptr
-    using global
-
+    
     vkcheck(vk.EndCommandBuffer(cmd))
 
     commandState.active = true
@@ -273,7 +270,7 @@ canvas_end :: proc(ptr: ^dev.Canvas) {
     );
 
     vkcheck(vk.QueueSubmit2(
-        graphicsQueue, 1, &submit, renderFence
+        G.graphicsQueue, 1, &submit, renderFence
     ))
 
     // Signal that we are Rendering.
@@ -295,20 +292,19 @@ canvas_present :: proc(
         return
     }
 
-    swap, ok := &global.windows[window]
+    swap, ok := &G.windows[window]
     if !ok do return
     
     this := transmute(^Canvas_Vulkan) canvas
-    using global
     
     // Wait for this slot in the swapchain to have Finished.
     frame := &swap.frames[swap.currentFrame]
     vkcheck(vk.WaitForFences(
-        device, 1, &frame.renderFinished,
+        G.device, 1, &frame.renderFinished,
         true, ONE_SECOND,
     ))
     vkcheck(vk.ResetFences(
-        device, 1, &frame.renderFinished,
+        G.device, 1, &frame.renderFinished,
     ))
 
     if swap.outOfDate {
@@ -317,7 +313,7 @@ canvas_present :: proc(
 
     swapchainImageIndex: u32
     vkcheck(vk.AcquireNextImageKHR(
-        device, swap.swapchain, ONE_SECOND, frame.swapSema,
+        G.device, swap.swapchain, ONE_SECOND, frame.swapSema,
         0, &swapchainImageIndex,
     ))
 
@@ -393,7 +389,7 @@ canvas_present :: proc(
         )
 
         vkcheck(vk.QueueSubmit2(
-            graphicsQueue, 1, &submit, frame.renderFinished
+            G.graphicsQueue, 1, &submit, frame.renderFinished
         ))
 
         // Canvas will need to wait before using this
@@ -420,7 +416,7 @@ canvas_present :: proc(
 
         res: vk.Result
         res = (vk.QueuePresentKHR(
-            graphicsQueue, &presentInfo,
+            G.graphicsQueue, &presentInfo,
         ))
         #partial switch res {
         case .SUCCESS:

@@ -18,16 +18,14 @@ validationLayers := []cstring {
 }
 
 initialize :: proc(opt: dev.Opt, mainWindow: host.Window) {
-    using global
-
-    initContext = context
+    G.initContext = context
 
     vk.load_proc_addresses(host.load_vulkan())
 
     create_instance()
 
     // Load instance dependant procedures
-    vk.load_proc_addresses_instance(instance)
+    vk.load_proc_addresses_instance(G.instance)
 
     // Register the main window's Surface, but not create the Swapchain yet
     swap := get_swapchain(mainWindow)
@@ -40,14 +38,14 @@ initialize :: proc(opt: dev.Opt, mainWindow: host.Window) {
         func := vma.create_vulkan_functions()
 
         info := vma.AllocatorCreateInfo {
-            physicalDevice = physicalDevice,
-            device = device,
-            instance = instance,
+            physicalDevice = G.physicalDevice,
+            device = G.device,
+            instance = G.instance,
             flags = { .BUFFER_DEVICE_ADDRESS },
             pVulkanFunctions = &func,
         }
 
-        res := vma.CreateAllocator(&info, &allocator)
+        res := vma.CreateAllocator(&info, &G.allocator)
         vkcheck(res)
     }
 
@@ -60,9 +58,7 @@ initialize :: proc(opt: dev.Opt, mainWindow: host.Window) {
 }
 
 shutdown :: proc() {
-    using global
-
-    vk.DeviceWaitIdle(device)
+    vk.DeviceWaitIdle(G.device)
 
     collect()
 
@@ -76,22 +72,22 @@ shutdown :: proc() {
     //     destroy_queue(&frame.deletionQueue)
     // }
 
-    exec_queue(&globalDeletionQueue)
-    destroy_queue(&globalDeletionQueue)
+    exec_queue(&G.globalDeletionQueue)
+    destroy_queue(&G.globalDeletionQueue)
 
-    for win, &swap in windows {
+    for win, &swap in G.windows {
         swapchain_dispose(&swap)
         swapchain_frames_deinit(&swap)
-        vk.DestroySurfaceKHR(instance, swap.surface, allocationCallbacks)
+        vk.DestroySurfaceKHR(G.instance, swap.surface, G.allocationCallbacks)
     }
 
-    vma.DestroyAllocator(allocator)
+    vma.DestroyAllocator(G.allocator)
 
-    vk.DestroyDevice(device, allocationCallbacks)
+    vk.DestroyDevice(G.device, G.allocationCallbacks)
 
-    vk.DestroyDebugUtilsMessengerEXT(instance, debugMessenger, allocationCallbacks)
+    vk.DestroyDebugUtilsMessengerEXT(G.instance, G.debugMessenger, G.allocationCallbacks)
 
-    vk.DestroyInstance(instance, allocationCallbacks)
+    vk.DestroyInstance(G.instance, G.allocationCallbacks)
 }
 
 @(private="file")
@@ -131,9 +127,7 @@ create_instance :: proc() {
         ppEnabledLayerNames = raw_data(validationLayers),
     }
 
-    using global
-
-    res := vk.CreateInstance(&createInfo, allocationCallbacks, &instance)
+    res := vk.CreateInstance(&createInfo, G.allocationCallbacks, &G.instance)
     log.assertf(res == .SUCCESS, "Failed to initialize VK instance: {}", res)
 }
 
@@ -146,9 +140,9 @@ create_debug_messenger :: proc() {
         pfnUserCallback = debugCallback,
 
     }
-    using global
+    
     res := vk.CreateDebugUtilsMessengerEXT(
-        instance, &createInfo, allocationCallbacks, &debugMessenger,
+        G.instance, &createInfo, G.allocationCallbacks, &G.debugMessenger,
     )
     log.assertf(res == .SUCCESS, "Failed to create VK debug messenger: ", res)
 
@@ -160,7 +154,7 @@ create_debug_messenger :: proc() {
         pCallbackData: ^vk.DebugUtilsMessengerCallbackDataEXT,
         userData: rawptr,
     ) -> b32 {
-        context = global.initContext
+        context = G.initContext
         lev: log.Level
         switch messageSeverity {
         case { .VERBOSE }:  lev = .Debug
@@ -185,24 +179,23 @@ create_debug_messenger :: proc() {
 
 @(private="file")
 pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
-    using global
     deviceCount: u32
-    vk.EnumeratePhysicalDevices(instance, &deviceCount, nil)
+    vk.EnumeratePhysicalDevices(G.instance, &deviceCount, nil)
 
     physicalDevices := make([]vk.PhysicalDevice, deviceCount)
     defer delete(physicalDevices)
 
-    vk.EnumeratePhysicalDevices(instance, &deviceCount, raw_data(physicalDevices))
+    vk.EnumeratePhysicalDevices(G.instance, &deviceCount, raw_data(physicalDevices))
 
     switch len(physicalDevices) {
     case 0:
         log.panic("Cannot initialize Vulkan: No physical devices found!")
     case 1:
         // Pick the only available Device
-        physicalDevice = physicalDevices[0]
+        G.physicalDevice = physicalDevices[0]
         pref := tovk(opt.deviceTypePreference)
 
-        caps := get_physical_capabilities(physicalDevice)
+        caps := get_physical_capabilities(G.physicalDevice)
 
         props := &caps.properties.properties
         // props: vk.PhysicalDeviceProperties
@@ -226,20 +219,20 @@ pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
         )
         // log.warn("Max Push Descriptors: ", maxPushDescript)
 
-        indices := findFamilies(physicalDevice, surface)
+        indices := findFamilies(G.physicalDevice, surface)
         log.assertf(familyComplete(indices),
             "Cannot initialize Vulkan, the only device: '{}', " +
             " does not have a Graphics capable Queue",
             cstring(&props.deviceName[0]),
         )
 
-        log.assertf(check_device_ext(physicalDevice),
+        log.assertf(check_device_ext(G.physicalDevice),
             "Cannot initialize Vulkan, the only device: '{}', " + 
             "does not support Swapchain Extensions",
             cstring(&props.deviceName[0]),
         )
 
-        swapsupport := query_swapchain_support(physicalDevice, surface, context.temp_allocator)
+        swapsupport := query_swapchain_support(G.physicalDevice, surface, context.temp_allocator)
         log.assertf(swapchain_supported(swapsupport), 
             "Cannot initialize Vulkan, the only device: '{}', " +
             "has inadecuate Swapchain Support",
@@ -249,7 +242,7 @@ pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
         score := min(int)
         pref := tovk(opt.deviceTypePreference)
         for device in physicalDevices {
-            caps := get_physical_capabilities(physicalDevice)
+            caps := get_physical_capabilities(G.physicalDevice)
 
             // props: vk.PhysicalDeviceProperties
             // vk.GetPhysicalDeviceProperties(device, &props)
@@ -257,13 +250,13 @@ pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
             // feats: vk.PhysicalDeviceFeatures
             // vk.GetPhysicalDeviceFeatures(device, &feats)
 
-            indices := findFamilies(physicalDevice, surface)
+            indices := findFamilies(G.physicalDevice, surface)
             swapsupport := query_swapchain_support(
-                physicalDevice, surface, context.temp_allocator)
+                G.physicalDevice, surface, context.temp_allocator)
 
             // Required GPU Features
             if !familyComplete(indices)          do continue
-            if !check_device_ext(physicalDevice) do continue
+            if !check_device_ext(G.physicalDevice) do continue
             if !swapchain_supported(swapsupport) do continue
 
             currentScore := 0
@@ -291,12 +284,12 @@ pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
             // - Exclude Limits
             if currentScore > score {
                 score = currentScore
-                physicalDevice = device
+                G.physicalDevice = device
             }
             
         }
 
-        log.assertf(physicalDevice != nil,
+        log.assertf(G.physicalDevice != nil,
             "Vulkan Initialization Failed: " +
             "could not find Device of type {}",
             pref,
@@ -305,7 +298,7 @@ pick_physical_device :: proc(opt: dev.Opt, surface: vk.SurfaceKHR) {
     }
 
     props: vk.PhysicalDeviceProperties
-    vk.GetPhysicalDeviceProperties(physicalDevice, &props)
+    vk.GetPhysicalDeviceProperties(G.physicalDevice, &props)
     log.infof("Chose device: {}", cstring(&props.deviceName[0]))
 
     // Image Properties Check
@@ -372,11 +365,11 @@ get_physical_capabilities :: proc(
 
 @(private="file")
 create_logical_device :: proc(surface: vk.SurfaceKHR) {
-    using global
-    indices := findFamilies(physicalDevice, surface)
+    
+    indices := findFamilies(G.physicalDevice, surface)
 
-    graphicsQueueFamily = indices[.Graphics].?
-    presentQueueFamily = indices[.Present].?
+    G.graphicsQueueFamily = indices[.Graphics].?
+    G.presentQueueFamily = indices[.Present].?
 
     priority := f32(1)
 
@@ -434,14 +427,14 @@ create_logical_device :: proc(surface: vk.SurfaceKHR) {
         ppEnabledLayerNames = raw_data(validationLayers),
     }
 
-    res := vk.CreateDevice(physicalDevice, &createInfo, allocationCallbacks, &device)
+    res := vk.CreateDevice(G.physicalDevice, &createInfo, G.allocationCallbacks, &G.device)
     log.assertf(res == .SUCCESS,
         "Cannot initialize Vulkan: " + 
         "failed to create logical device: {}", res,
     )
 
-    vk.GetDeviceQueue(device, indices[.Graphics].(u32), 0, &graphicsQueue)
-    vk.GetDeviceQueue(device, indices[.Present].(u32), 0, &presentQueue)
+    vk.GetDeviceQueue(G.device, indices[.Graphics].(u32), 0, &G.graphicsQueue)
+    vk.GetDeviceQueue(G.device, indices[.Present].(u32), 0, &G.presentQueue)
 }
 
 checkValidationLayers :: proc(requiredLayers: []cstring) -> bool {

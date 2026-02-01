@@ -13,7 +13,7 @@ import vk "vendor:vulkan"
 import dev "../device"
 
 
-global: Global
+G: Global
 
 Global :: struct {
     instance: vk.Instance,
@@ -52,15 +52,11 @@ Global :: struct {
 ONE_SECOND :: 1000000000
 
 collect :: proc() {
-    using global
-
-    exec_queue(&collectQueue)
+    exec_queue(&G.collectQueue)
 }
 
 qcollect :: proc(data: rawptr, procedure: proc(rawptr)) {
-    using global
-
-    deq.push(&collectQueue, Action {
+    deq.push(&G.collectQueue, Action {
         data = data,
         procedure = procedure,
     })

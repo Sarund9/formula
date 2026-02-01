@@ -49,20 +49,19 @@ Swapchain_Frame :: struct {
 }
 
 get_swapchain :: proc(window: host.Window) -> ^Swapchain {
-    using global
     
-    if window not_in windows {
-        surface, res := host.create_vulkan_surface(window, instance, allocationCallbacks)
+    if window not_in G.windows {
+        surface, res := host.create_vulkan_surface(window, G.instance, G.allocationCallbacks)
     
         log.assertf(res == .SUCCESS, "Could not create surface for Window: {}", res)
     
-        windows[window] = Swapchain {
+        G.windows[window] = Swapchain {
             window = window,
             surface = surface,
         }
     }
 
-    return &windows[window]
+    return &G.windows[window]
 }
 
 /* Initializes the target window's Swapchain for Vulkan Rendering
@@ -71,7 +70,7 @@ window_register :: proc(window: host.Window) {
     swap := get_swapchain(window)
 
     // Swapchain Initialization
-    pd := global.physicalDevice
+    pd := G.physicalDevice
 
     sup := query_swapchain_support(pd, swap.surface, context.temp_allocator)
 
@@ -99,7 +98,7 @@ window_register :: proc(window: host.Window) {
 }
 
 swapchain_create :: proc(swap: ^Swapchain) {
-    pd := global.physicalDevice
+    pd := G.physicalDevice
 
     createInfo := vk.SwapchainCreateInfoKHR {
         sType = .SWAPCHAIN_CREATE_INFO_KHR,
@@ -127,10 +126,10 @@ swapchain_create :: proc(swap: ^Swapchain) {
         createInfo.pQueueFamilyIndices = &indices[auto_cast 0]
     }
 
-    ld := global.device
+    ld := G.device
     assert(ld != nil)
 
-    alck := global.allocationCallbacks
+    alck := G.allocationCallbacks
     res: vk.Result
 
     res = vk.CreateSwapchainKHR(ld, &createInfo, alck, &swap.swapchain)
@@ -170,17 +169,16 @@ swapchain_create :: proc(swap: ^Swapchain) {
 }
 
 swapchain_dispose :: proc(swap: ^Swapchain) {
-    using global
     for view in swap.swapchainImageViews {
-        vk.DestroyImageView(device, view, allocationCallbacks)
+        vk.DestroyImageView(G.device, view, G.allocationCallbacks)
     }
-    vk.DestroySwapchainKHR(device, swap.swapchain, allocationCallbacks)
+    vk.DestroySwapchainKHR(G.device, swap.swapchain, G.allocationCallbacks)
 }
 
 swapchain_recreate :: proc(swap: ^Swapchain) {
-    gd := global.device
-    pd := global.physicalDevice
-    alck := global.allocationCallbacks
+    gd := G.device
+    pd := G.physicalDevice
+    alck := G.allocationCallbacks
 
     surf := swap.surface
 
@@ -204,14 +202,14 @@ swapchain_frames_init :: proc(swap: ^Swapchain) {
     poolInfo := vk.CommandPoolCreateInfo {
         sType = .COMMAND_POOL_CREATE_INFO,
         flags = { .RESET_COMMAND_BUFFER },
-        queueFamilyIndex = global.graphicsQueueFamily,
+        queueFamilyIndex = G.graphicsQueueFamily,
     }
 
     fenceInfo := fence_create_info({ .SIGNALED })
     semaInfo := semaphore_create_info({})
 
-    ld := global.device
-    alck := global.allocationCallbacks
+    ld := G.device
+    alck := G.allocationCallbacks
 
     res: vk.Result
     for i in 0..<swap.swapchainImageCount {
@@ -242,8 +240,8 @@ swapchain_frames_init :: proc(swap: ^Swapchain) {
 }
 
 swapchain_frames_deinit :: proc(swap: ^Swapchain) {
-    ld := global.device
-    alck := global.allocationCallbacks
+    ld := G.device
+    alck := G.allocationCallbacks
     for &frame in swap.frames {
         vk.DestroyCommandPool(ld, frame.commandPool, alck)
         vk.DestroyFence(ld, frame.renderFinished, alck)
