@@ -1,0 +1,34 @@
+
+
+
+package_name: "formula_vendor_wayland"
+
+inputs: [
+    "headers/"
+]
+
+output_folder: "."
+
+clang_include_paths: [
+    "/usr/lib/clang/18/include"
+]
+
+import_lib: "libwayland-client.so"
+
+remove_type_prefix: "wl_"
+remove_type_suffix: "_t"
+remove_macro_prefix: "wl_"
+remove_function_prefix: "wl_"
+
+force_ada_case_types: true
+procedures_at_end: true
+
+type_overrides: {
+    // "wl_display": "distinct rawptr"
+}
+
+struct_field_overrides: {
+    "wl_interface.methods": "[^]"
+    "wl_interface.events": "[^]"
+}
+

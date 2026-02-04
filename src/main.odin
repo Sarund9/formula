@@ -18,7 +18,6 @@ Push_Const :: struct {
 
 
 main :: proc() {
-
     context.logger = log.create_console_logger(
         opt = { .Terminal_Color, .Level }
     )
@@ -71,20 +70,17 @@ main :: proc() {
     for !quit {
         host.process()
         for event in host.events() {
-            using host
             #partial switch e in event {
-            case Event_App:
+            case host.Event_App:
                 switch e {
                 case .Quit: quit = true
                 }
             }
         }
 
-        using gfx
+        gfx.collect()
 
-        collect()
-
-        cmd := begin(canvas)
+        cmd := gfx.begin(canvas)
         cmd->use(program)
         cmd->write(0, 0, canvas)
         cmd->update()
@@ -94,9 +90,9 @@ main :: proc() {
         })
         cmd->dispatch(canvas.width, canvas.height, 1)
 
-        end(canvas)
+        gfx.end(canvas)
 
-        present(canvas, win)
+        gfx.present(canvas, win)
         // gfx.begin_frame()
 
         

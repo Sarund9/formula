@@ -3,6 +3,7 @@
 # User-specific files.
 usernotes/
 ols.json
+user.env
 
 # Test files
 sandbox.exe

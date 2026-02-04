@@ -1,0 +1,10 @@
+
+
+# ignore actual wayland files.
+wayland-*
+
+libwayland-client.so
+
+GENERATE.md
+generator.bin
+
